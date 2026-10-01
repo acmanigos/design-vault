@@ -1,6 +1,7 @@
+import { currentAccount } from './account';
 import { DEFAULT_LIBRARY_ID, DEFAULT_LIBRARY_NAME, libraryPresetDefaults, type IdeaBox, type IdeaOption, type SyncStatus, type VaultLibrary } from '@/lib/types';
 
-const DB_NAME = 'design-vault-db';
+const databaseName = () => currentAccount() ? 'design-vault-user-' + currentAccount() : 'design-vault-local';
 const DB_VERSION = 4;
 const STORE_NAME = 'ideaBoxes';
 const QUEUE_STORE = 'syncQueue';
@@ -71,7 +72,7 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(new Error('IndexedDB is not available in this browser.'));
       return;
     }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(databaseName(), DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'id' });
@@ -219,6 +220,7 @@ export function normalizeLibrary(item: any, index = 0): VaultLibrary {
   return {
     id: typeof item?.id === 'string' && item.id ? item.id : `library-${Date.now()}-${index}`,
     name,
+    ownerId: item?.ownerId, visibility: item?.visibility ?? 'private', role: item?.role ?? 'owner',
     preset: item?.preset === 'video-story' ? 'video-story' : item?.preset === 'image-landscape' ? 'image-landscape' : defaults.preset,
     aspectRatio: item?.aspectRatio === '9:16' ? '9:16' : item?.aspectRatio === '16:9' ? '16:9' : defaults.aspectRatio,
     width: Number.isFinite(item?.width) ? Number(item.width) : defaults.width,
@@ -243,7 +245,7 @@ export async function loadLocalLibraries(): Promise<VaultLibrary[]> {
     });
     if (libraries.some((library) => library.id === DEFAULT_LIBRARY_ID)) return libraries.sort((a, b) => a.name.localeCompare(b.name));
     const now = new Date().toISOString();
-    const defaultLibrary: VaultLibrary = { id: DEFAULT_LIBRARY_ID, name: DEFAULT_LIBRARY_NAME, ...libraryPresetDefaults(DEFAULT_LIBRARY_NAME), createdAt: now, updatedAt: now, syncStatus: 'local' };
+    const defaultLibrary: VaultLibrary = { ownerId: currentAccount(), visibility: 'private', role: 'owner', id: DEFAULT_LIBRARY_ID, name: DEFAULT_LIBRARY_NAME, ...libraryPresetDefaults(DEFAULT_LIBRARY_NAME), createdAt: now, updatedAt: now, syncStatus: 'local' };
     await putLocalLibrary(defaultLibrary);
     return [defaultLibrary, ...libraries].sort((a, b) => a.name.localeCompare(b.name));
   } finally { db.close(); }
@@ -288,3 +290,4 @@ export async function removeLocalLibrary(id: string): Promise<void> {
     });
   } finally { db.close(); }
 }
+

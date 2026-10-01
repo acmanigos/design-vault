@@ -1,9 +1,10 @@
 'use client';
 
+import { canEdit, canManage } from '@/lib/permissions';
 import { useRouter } from 'next/navigation';
 import { ChangeEvent, DragEvent, FormEvent, MouseEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, Copy, GripVertical, Heart, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { deleteIdeaBox, loadIdeaBox, loadLibraries, saveIdeaBox, imageFileToStorageDataUrl } from '@/lib/storage';
+import { deleteIdeaBox, loadIdeaBox, loadLibraries, saveIdeaBox, imageFileToStorageDataUrl, subscribeDataChanges } from '@/lib/storage';
 import { extractPalette } from '@/lib/palette';
 import { resolveVideoSource } from '@/lib/video';
 import type { IdeaOption, IdeaBox, VaultLibrary } from '@/lib/types';
@@ -80,6 +81,14 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
   const [dropStatus, setDropStatus] = useState('');
   const [dragOptionId, setDragOptionId] = useState('');
   const [dragOverOptionId, setDragOverOptionId] = useState('');
+  useEffect(() => {
+    const unsubscribe = subscribeDataChanges(boxes => {
+      const latest = boxes.find(box => box.id === id) || null;
+      if (!latest || (!editingBox && !editingOption && !addingOption)) setRefItem(latest);
+      void loadLibraries().then(setLibraries);
+    });
+    return () => { unsubscribe(); };
+  }, [id, editingBox, editingOption, addingOption]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +111,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
 
   const selectedOption = refItem?.options.find((option) => option.id === selectedId) ?? refItem?.options[0];
   const selectedLibrary = libraries.find((library) => library.id === refItem?.libraryId);
+  const editable = canEdit(selectedLibrary);
   const isStoryLibrary = selectedLibrary?.preset === 'video-story';
   const activeVideoUrl = selectedOption?.videoUrl || refItem?.videoUrl || '';
   const videoSource = useMemo(() => resolveVideoSource(activeVideoUrl), [activeVideoUrl]);
@@ -116,12 +126,12 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
   }, [refItem?.id]);
 
   const persist = async (updated: IdeaBox) => {
-    setRefItem(updated);
+    if (!editable) return;
     try {
       const saved = await saveIdeaBox(updated);
       setRefItem(saved);
-    } catch {
-      window.alert('Design Vault could not save this change to local browser storage.');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Design Vault could not save this change.');
       throw new Error('Save failed');
     }
   };
@@ -172,6 +182,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
     if (!refItem || editingBox || editingOption || addingOption) return;
 
     const onPaste = async (event: ClipboardEvent) => {
+      if (!editable) return;
       const imageItem = Array.from(event.clipboardData?.items ?? []).find((item) => item.type.startsWith('image/'));
       const file = imageItem?.getAsFile();
       if (!file) return;
@@ -206,9 +217,10 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
 
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [refItem, editingBox, editingOption, addingOption]);
+  }, [refItem, editingBox, editingOption, addingOption, editable]);
 
   const addDroppedFiles = async (files: File[]) => {
+    if (!editable) return;
     if (!refItem || editingBox || editingOption || addingOption || dropBusy) return;
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
     if (!imageFiles.length) return;
@@ -261,6 +273,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
   };
 
   const reorderOptions = async (sourceId: string, targetId: string) => {
+    if (!editable) return;
     if (!refItem || !sourceId || !targetId || sourceId === targetId) return;
     const sourceIndex = refItem.options.findIndex((option) => option.id === sourceId);
     const targetIndex = refItem.options.findIndex((option) => option.id === targetId);
@@ -322,7 +335,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
       <div className="mx-auto max-w-[1550px]" onMouseDown={(e) => e.stopPropagation()}>
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-zinc-400 hover:text-white"><ArrowLeft size={15}/> Back to vault</button>
-          <div className="flex gap-2"><button onClick={() => persist({ ...refItem, favorite: !refItem.favorite })} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.03]"><Heart size={16} fill={refItem.favorite ? 'currentColor' : 'none'}/></button><button onClick={() => setEditingBox(true)} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 text-sm"><Pencil size={14}/> Edit box</button><button onClick={deleteBox} className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-4 text-sm font-medium text-black"><Trash2 size={14}/> Delete box</button></div>
+          <div className="flex gap-2"><button disabled={!editable} onClick={() => persist({ ...refItem, favorite: !refItem.favorite })} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.03]"><Heart size={16} fill={refItem.favorite ? 'currentColor' : 'none'}/></button><button disabled={!editable} onClick={() => setEditingBox(true)} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 text-sm"><Pencil size={14}/> Edit box</button><button disabled={!editable} onClick={deleteBox} className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-4 text-sm font-medium text-black"><Trash2 size={14}/> Delete box</button></div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
@@ -343,7 +356,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
               )}
             </div>
             <section onDragEnter={optionDragOver} onDragOver={optionDragOver} onDragLeave={(event) => { if (event.currentTarget === event.target) setDropActive(false); }} onDrop={optionDrop} className={`relative rounded-[26px] border bg-[#111] p-3 transition sm:p-4 ${dropActive ? 'border-orange-400' : 'border-white/10'}`}>
-              <div className="mb-3 flex items-center justify-between gap-3 px-1"><div><p className="text-[11px] font-medium uppercase tracking-[0.18em] text-orange-300">Options</p><p className="mt-1 text-xs text-zinc-600">Click an option to view its prompt, notes, and colors. Paste with Ctrl+V, or drag multiple images here to add them in bulk.</p>{pasteStatus && <p className={`mt-2 text-xs ${pasteBusy ? 'text-zinc-400' : 'text-emerald-300'}`}>{pasteStatus}</p>}{dropStatus && <p className={`mt-2 text-xs ${dropBusy ? 'text-zinc-400' : 'text-emerald-300'}`}>{dropStatus}</p>}</div><button onClick={() => setAddingOption(true)} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300"><Plus size={13}/> Add option</button></div>
+              <div className="mb-3 flex items-center justify-between gap-3 px-1"><div><p className="text-[11px] font-medium uppercase tracking-[0.18em] text-orange-300">Options</p><p className="mt-1 text-xs text-zinc-600">Click an option to view its prompt, notes, and colors. Paste with Ctrl+V, or drag multiple images here to add them in bulk.</p>{pasteStatus && <p className={`mt-2 text-xs ${pasteBusy ? 'text-zinc-400' : 'text-emerald-300'}`}>{pasteStatus}</p>}{dropStatus && <p className={`mt-2 text-xs ${dropBusy ? 'text-zinc-400' : 'text-emerald-300'}`}>{dropStatus}</p>}</div><button disabled={!editable} onClick={() => setAddingOption(true)} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300"><Plus size={13}/> Add option</button></div>
               <div className={`mb-3 rounded-2xl border border-dashed px-4 py-3 text-center text-xs transition ${dropActive ? 'border-orange-400 bg-orange-500/[0.08] text-orange-200' : 'border-white/10 bg-black/10 text-zinc-600'}`}>{dropBusy ? dropStatus || 'Adding images...' : 'Drop multiple images here to add them as new options'}</div>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
                 {refItem.options.map((option) => {
@@ -354,7 +367,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
                   return (
                     <div
                       key={option.id}
-                      draggable
+                      draggable={editable}
                       onDragStart={(event) => optionCardDragStart(event, option.id)}
                       onDragOver={(event) => optionCardDragOver(event, option.id)}
                       onDrop={(event) => optionCardDrop(event, option.id)}
@@ -378,12 +391,12 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
           </div>
 
           <aside className="rounded-[26px] border border-white/10 bg-[#111] p-5 sm:p-6">
-            {editingBox ? <form onSubmit={saveBox} className="space-y-4"><div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-orange-300">Edit Idea Box</p><h2 className="mt-1 text-xl font-semibold">{libraries.find((library) => library.id === boxLibraryId)?.name || 'Library'}</h2></div><button type="button" onClick={() => setEditingBox(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10"><X size={15}/></button></div><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Title</span><input value={boxTitle} onChange={(e) => setBoxTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none"/></label><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Library</span><select value={boxLibraryId} onChange={(e) => setBoxLibraryId(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#151515] px-3.5 py-3 text-sm outline-none">{libraries.map((library) => <option key={library.id} value={library.id}>{library.name}</option>)}</select></label><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Source</span><input value={boxSource} onChange={(e) => setBoxSource(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none"/></label><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Idea box notes</span><textarea value={boxNotes} onChange={(e) => setBoxNotes(e.target.value)} rows={6} className="w-full resize-y rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none"/></label><button type="submit" className="w-full rounded-xl bg-orange-500 px-4 py-3 text-xs font-semibold text-black">Save Idea Box</button></form>
+            {editingBox ? <form onSubmit={saveBox} className="space-y-4"><div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-orange-300">Edit Idea Box</p><h2 className="mt-1 text-xl font-semibold">{libraries.find((library) => library.id === boxLibraryId)?.name || 'Library'}</h2></div><button type="button" onClick={() => setEditingBox(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10"><X size={15}/></button></div><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Title</span><input value={boxTitle} onChange={(e) => setBoxTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none"/></label><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Library</span><select value={boxLibraryId} onChange={(e) => setBoxLibraryId(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#151515] px-3.5 py-3 text-sm outline-none">{libraries.filter(library => library.id === refItem.libraryId || (canManage(selectedLibrary) && canManage(library))).map((library) => <option key={library.id} value={library.id}>{library.name}</option>)}</select></label><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Source</span><input value={boxSource} onChange={(e) => setBoxSource(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none"/></label><label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Idea box notes</span><textarea value={boxNotes} onChange={(e) => setBoxNotes(e.target.value)} rows={6} className="w-full resize-y rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none"/></label><button type="submit" className="w-full rounded-xl bg-orange-500 px-4 py-3 text-xs font-semibold text-black">Save Idea Box</button></form>
             : addingOption ? <OptionEditor initial={emptyOption} adding videoEnabled={Boolean(selectedLibrary?.optionVideoEnabled)} onCancel={() => setAddingOption(false)} onSave={saveOption}/>
             : editingOption && selectedOption ? <OptionEditor initial={selectedOption} adding={false} videoEnabled={Boolean(selectedLibrary?.optionVideoEnabled)} onCancel={() => setEditingOption(false)} onSave={saveOption}/>
             : selectedOption ? <div>
               <div className="border-b border-white/[0.08] pb-5"><p className="text-xs uppercase tracking-[0.18em] text-orange-300">Idea Box</p><h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{refItem.title}</h1><p className="mt-2 text-xs text-zinc-500">{selectedLibrary?.name || 'Sermon Series'} · {selectedLibrary?.aspectRatio || '16:9'} · {selectedLibrary?.width || 1920}×{selectedLibrary?.height || 1080} · {refItem.source}</p>{refItem.notes && <p className="mt-4 text-sm leading-6 text-zinc-400">{refItem.notes}</p>}</div>
-              <div className="py-5"><p className="text-[10px] uppercase tracking-[0.18em] text-orange-300">Selected option</p><div className="mt-1 flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">{selectedOption.title}</h2><div className="flex gap-2"><button onClick={() => setEditingOption(true)} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-2 text-xs"><Pencil size={12}/> Edit</button><button onClick={deleteOption} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-2 text-xs"><Trash2 size={12}/> Delete</button></div></div><button onClick={setAsThumbnail} disabled={selectedOption.id === refItem.thumbnailOptionId} className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300 disabled:border-orange-500/20 disabled:bg-orange-500/[0.06] disabled:text-orange-300">{selectedOption.id === refItem.thumbnailOptionId && <Check size={13}/>} {selectedOption.id === refItem.thumbnailOptionId ? 'Current thumbnail' : 'Set as thumbnail'}</button></div>
+              <div className="py-5"><p className="text-[10px] uppercase tracking-[0.18em] text-orange-300">Selected option</p><div className="mt-1 flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">{selectedOption.title}</h2><div className="flex gap-2"><button disabled={!editable} onClick={() => setEditingOption(true)} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-2 text-xs"><Pencil size={12}/> Edit</button><button disabled={!editable} onClick={deleteOption} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-2 text-xs"><Trash2 size={12}/> Delete</button></div></div><button onClick={setAsThumbnail} disabled={!editable || selectedOption.id === refItem.thumbnailOptionId} className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300 disabled:border-orange-500/20 disabled:bg-orange-500/[0.06] disabled:text-orange-300">{selectedOption.id === refItem.thumbnailOptionId && <Check size={13}/>} {selectedOption.id === refItem.thumbnailOptionId ? 'Current thumbnail' : 'Set as thumbnail'}</button></div>
               {selectedLibrary?.optionVideoEnabled && <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.025] p-4"><p className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Video version</p><p className="mt-2 break-all text-xs leading-5 text-zinc-300">{selectedOption.videoUrl || 'No video URL saved yet.'}</p>{selectedOption.videoUrl && <a href={selectedOption.videoUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300">Open video</a>}</div>}
               <div className="rounded-2xl border border-orange-500/20 bg-orange-500/[0.035] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-[10px] uppercase tracking-[0.18em] text-orange-300">Prompt used</p><button onClick={copyPrompt} disabled={!selectedOption.promptUsed} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-2.5 py-1.5 text-[10px] text-zinc-400 disabled:opacity-30"><Copy size={11}/>{copied ? 'Copied' : 'Copy'}</button></div><div className="max-h-[360px] overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-6 text-zinc-300">{selectedOption.promptUsed || 'No prompt saved yet.'}</div></div>
               {selectedOption.notes && <div className="mt-5"><p className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-600">Notes</p><p className="text-sm leading-6 text-zinc-400">{selectedOption.notes}</p></div>}
@@ -395,3 +408,4 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
     </main>
   );
 }
+

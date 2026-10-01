@@ -11,3 +11,4 @@ button, input { font: inherit; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: #0a0a0a; }
 ::-webkit-scrollbar-thumb { background: #2c2c2c; border-radius: 999px; border: 2px solid #0a0a0a; }
+

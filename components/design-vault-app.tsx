@@ -1,6 +1,8 @@
 'use client';
 
 import { ChangeEvent, DragEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import TeamAccess from '@/components/team-access';
+import { canEdit, canManage } from '@/lib/permissions';
 import IdeaBoxDetail from '@/components/idea-box-detail';
 import { Archive, Cloud, Database, Heart, ImagePlus, Layers3, Play, Plus, RefreshCw, Search, Trash2, Upload, Video, WifiOff, X } from 'lucide-react';
 import { extractPalette } from '@/lib/palette';
@@ -81,7 +83,7 @@ function IdeaBoxCard({ refItem, library, onFavorite, onOpen }: { refItem: IdeaBo
         </button>
         {(thumbnail.videoUrl || refItem.videoUrl) && <div className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white"><Play size={11} fill="currentColor" /> Video</div>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/55 to-transparent" />
-        <button onClick={onFavorite} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur hover:bg-black/60" aria-label="Favorite">
+        <button disabled={!canEdit(library)} onClick={onFavorite} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur hover:bg-black/60" aria-label="Favorite">
           <Heart size={15} fill={refItem.favorite ? 'currentColor' : 'none'} />
         </button>
       </div>
@@ -285,9 +287,9 @@ export default function DesignVaultApp() {
 
   const toggleFavorite = async (id: string) => {
     const current = refs.find((item) => item.id === id);
-    if (!current) return;
+    if (!current || !canEdit(libraries.find(l => l.id === current.libraryId))) return;
     const updated = { ...current, favorite: !current.favorite };
-    setRefs((items) => items.map((item) => item.id === id ? updated : item));
+
     try {
       const saved = await saveIdeaBox(updated);
       setRefs((items) => items.map((item) => item.id === id ? saved : item));
@@ -335,7 +337,7 @@ export default function DesignVaultApp() {
   };
 
   const createIdeaBoxesFromDrop = async (dataTransfer: DataTransfer) => {
-    if (showUpload || dropBusy) return;
+    if (showUpload || dropBusy || !canEdit(libraries.find(l => l.id === selectedLibraryId))) return;
     setDropBusy(true);
     setDropStatus('Reading dropped items...');
     try {
@@ -369,7 +371,7 @@ export default function DesignVaultApp() {
 
   const handleVaultDragOver = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
-    if (Array.from(event.dataTransfer.types).includes('Files')) setDropActive(true);
+    if (canEdit(libraries.find(l => l.id === selectedLibraryId)) && Array.from(event.dataTransfer.types).includes('Files')) setDropActive(true);
   };
 
   const handleVaultDrop = (event: DragEvent<HTMLElement>) => {
@@ -439,7 +441,7 @@ export default function DesignVaultApp() {
         <div className="mx-auto flex max-w-[1500px] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex shrink-0 items-center gap-2"><span className="grid h-9 w-9 place-items-center rounded-xl bg-orange-500 text-black"><Archive size={17} strokeWidth={2.5}/></span><div className="hidden sm:block"><div className="text-sm font-semibold">Design Vault</div><div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Idea library</div></div></div>
           <div className="mx-auto flex w-full max-w-2xl items-center rounded-full border border-white/[0.09] bg-white/[0.04] px-3.5"><Search size={15} className="text-zinc-500"/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, prompt, notes, source, colors…" className="w-full bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-zinc-600"/></div>
-          <button onClick={() => setShowUpload(true)} className="flex shrink-0 items-center gap-2 rounded-full bg-zinc-100 px-4 py-2.5 text-xs font-medium text-black"><Upload size={14}/> <span className="hidden sm:inline">New Idea Box</span></button>
+          <button disabled={!canEdit(selectedLibrary)} onClick={() => setShowUpload(true)} className="flex shrink-0 items-center gap-2 rounded-full bg-zinc-100 px-4 py-2.5 text-xs font-medium text-black"><Upload size={14}/> <span className="hidden sm:inline">New Idea Box</span></button>
         </div>
       </header>
 
@@ -472,18 +474,20 @@ export default function DesignVaultApp() {
                 const count = refs.filter((item) => item.libraryId === library.id).length;
                 return <div key={library.id} className={`group flex items-center rounded-xl ${active ? 'bg-white/[0.08]' : 'hover:bg-white/[0.04]'}`}>
                   <button onClick={() => { setSelectedLibraryId(library.id); setFavoritesOnly(false); }} className={`flex min-w-0 flex-1 items-center justify-between px-2.5 py-2 text-left text-sm ${active ? 'text-white' : 'text-zinc-500'}`}><span className="flex min-w-0 items-center gap-2.5"><Layers3 size={14} className="shrink-0"/><span className="truncate">{library.name}</span></span><span className="ml-2 text-[10px] text-zinc-700">{count}</span></button>
-                  {library.id !== DEFAULT_LIBRARY_ID && <button onClick={() => void removeLibrary(library)} title={`Delete ${library.name}`} className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-zinc-700 opacity-0 transition hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"><Trash2 size={12}/></button>}
+                  {library.id !== DEFAULT_LIBRARY_ID && canManage(library) && <button onClick={() => void removeLibrary(library)} title={`Delete ${library.name}`} className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-zinc-700 opacity-0 transition hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"><Trash2 size={12}/></button>}
                 </div>;
               })}
             </nav>
-            {addingLibrary ? <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.025] p-2"><input autoFocus value={newLibraryName} onChange={(e) => setNewLibraryName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void addLibrary(); if (e.key === 'Escape') { setAddingLibrary(false); setNewLibraryName(''); } }} placeholder="Plan Your Visit" className="w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-xs outline-none focus:border-orange-400/50"/><select value={newLibraryPreset} onChange={(e) => setNewLibraryPreset(e.target.value as LibraryPreset)} className="mt-2 w-full rounded-lg border border-white/10 bg-[#151515] px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="image-landscape">Design · 16:9</option><option value="video-story">Story video · 9:16</option></select><div className="mt-2 flex gap-2"><button onClick={() => void addLibrary()} className="flex-1 rounded-lg bg-orange-500 px-2 py-1.5 text-[11px] font-semibold text-black">Add</button><button onClick={() => { setAddingLibrary(false); setNewLibraryName(''); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-zinc-500">Cancel</button></div></div> : <button onClick={() => setAddingLibrary(true)} className="mt-3 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-zinc-600 hover:bg-white/[0.04] hover:text-zinc-300"><Plus size={14}/> Add library</button>}
+            {addingLibrary ? <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.025] p-2"><input autoFocus value={newLibraryName} onChange={(e) => { setNewLibraryName(e.target.value); if (/plan\s*your\s*visit/i.test(e.target.value)) setNewLibraryPreset('video-story'); }} onKeyDown={(e) => { if (e.key === 'Enter') void addLibrary(); if (e.key === 'Escape') { setAddingLibrary(false); setNewLibraryName(''); } }} placeholder="Plan Your Visit" className="w-full rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-xs outline-none focus:border-orange-400/50"/><select value={newLibraryPreset} onChange={(e) => setNewLibraryPreset(e.target.value as LibraryPreset)} className="mt-2 w-full rounded-lg border border-white/10 bg-[#151515] px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="image-landscape">Design · 16:9</option><option value="video-story">Story video · 9:16</option></select><div className="mt-2 flex gap-2"><button onClick={() => void addLibrary()} className="flex-1 rounded-lg bg-orange-500 px-2 py-1.5 text-[11px] font-semibold text-black">Add</button><button onClick={() => { setAddingLibrary(false); setNewLibraryName(''); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-zinc-500">Cancel</button></div></div> : <button onClick={() => setAddingLibrary(true)} className="mt-3 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-zinc-600 hover:bg-white/[0.04] hover:text-zinc-300"><Plus size={14}/> Add library</button>}
             <div className="mt-8 border-t border-white/[0.07] pt-5"><button onClick={() => setFavoritesOnly(true)} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm ${favoritesOnly ? 'bg-white/[0.08] text-white' : 'text-zinc-500 hover:bg-white/[0.04]'}`}><Heart size={14}/> Favorites</button></div>
           </div>
         </aside>
 
         <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {selectedLibrary && <TeamAccess library={selectedLibrary} onChange={setLibraries}/>}
+          {selectedLibrary && !canEdit(selectedLibrary) && <p className="mb-3 text-amber-300">Viewer access — browse images and copy prompts.</p>}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div><div className="mb-1 flex items-center gap-2 text-xs text-zinc-600"><span>Vault</span><span>/</span><span>{favoritesOnly ? 'Favorites' : (selectedLibrary?.name || 'Library')}</span></div><div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-semibold tracking-[-0.04em] text-white">{favoritesOnly ? 'Favorites' : (selectedLibrary?.name || 'Library')}</h1>{!favoritesOnly && selectedLibrary && <select value={selectedLibrary.preset} onChange={(e) => { const preset = e.target.value as LibraryPreset; const updated = preset === 'video-story' ? { ...selectedLibrary, preset, aspectRatio: '9:16' as const, width: 1080, height: 1920, optionVideoEnabled: true } : { ...selectedLibrary, preset, aspectRatio: '16:9' as const, width: 1920, height: 1080, optionVideoEnabled: false }; void saveLibrary(updated).then((saved) => setLibraries((items) => items.map((item) => item.id === saved.id ? saved : item))); }} className="rounded-xl border border-white/10 bg-[#141414] px-3 py-2 text-xs text-zinc-300 outline-none"><option value="image-landscape">Design · 16:9 · 1920×1080</option><option value="video-story">Story video · 9:16 · 1080×1920</option></select>}</div><p className="mt-1 text-sm text-zinc-500">{visibleRefs.length} Idea Box{visibleRefs.length === 1 ? '' : 'es'} · {selectedLibrary?.aspectRatio || '16:9'} · {selectedLibrary?.width || 1920}×{selectedLibrary?.height || 1080} · prompts, options, notes and colors</p></div>
+            <div><div className="mb-1 flex items-center gap-2 text-xs text-zinc-600"><span>Vault</span><span>/</span><span>{favoritesOnly ? 'Favorites' : (selectedLibrary?.name || 'Library')}</span></div><div className="flex flex-wrap items-center gap-3"><h1 className="text-3xl font-semibold tracking-[-0.04em] text-white">{favoritesOnly ? 'Favorites' : (selectedLibrary?.name || 'Library')}</h1>{!favoritesOnly && selectedLibrary && <select disabled={!canManage(selectedLibrary)} value={selectedLibrary.preset} onChange={(e) => { const preset = e.target.value as LibraryPreset; const updated = preset === 'video-story' ? { ...selectedLibrary, preset, aspectRatio: '9:16' as const, width: 1080, height: 1920, optionVideoEnabled: true } : { ...selectedLibrary, preset, aspectRatio: '16:9' as const, width: 1920, height: 1080, optionVideoEnabled: false }; void saveLibrary(updated).then((saved) => setLibraries((items) => items.map((item) => item.id === saved.id ? saved : item))).catch(e => setSaveError(e.message)); }} className="rounded-xl border border-white/10 bg-[#141414] px-3 py-2 text-xs text-zinc-300 outline-none"><option value="image-landscape">Design · 16:9 · 1920×1080</option><option value="video-story">Story video · 9:16 · 1080×1920</option></select>}</div><p className="mt-1 text-sm text-zinc-500">{visibleRefs.length} Idea Box{visibleRefs.length === 1 ? '' : 'es'} · {selectedLibrary?.aspectRatio || '16:9'} · {selectedLibrary?.width || 1920}×{selectedLibrary?.height || 1080} · prompts, options, notes and colors</p></div>
             <label className="flex items-center gap-2 self-start sm:self-auto"><span className="text-xs text-zinc-600">Sort</span><select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} className="rounded-xl border border-white/10 bg-[#141414] px-3 py-2.5 text-xs text-zinc-300 outline-none hover:border-white/20"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="az">Title A–Z</option><option value="za">Title Z–A</option><option value="favorites">Favorites first</option><option value="most-options">Most options</option><option value="fewest-options">Fewest options</option></select></label>
           </div>
           <div className={`mb-6 rounded-2xl border border-dashed p-4 transition ${dropActive ? 'border-orange-400 bg-orange-500/[0.08]' : 'border-white/10 bg-white/[0.02]'}`}>
@@ -501,3 +505,4 @@ export default function DesignVaultApp() {
     </main>
   );
 }
+

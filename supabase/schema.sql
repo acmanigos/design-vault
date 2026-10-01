@@ -65,34 +65,6 @@ alter table public.idea_boxes enable row level security;
 alter table public.idea_options enable row level security;
 alter table public.libraries enable row level security;
 
-drop policy if exists "public idea box read" on public.idea_boxes;
-drop policy if exists "public idea box write" on public.idea_boxes;
-drop policy if exists "public idea option read" on public.idea_options;
-drop policy if exists "public idea option write" on public.idea_options;
-drop policy if exists "public library read" on public.libraries;
-drop policy if exists "public library write" on public.libraries;
 
-create policy "public idea box read" on public.idea_boxes for select to anon using (true);
-create policy "public idea box write" on public.idea_boxes for all to anon using (true) with check (true);
-create policy "public idea option read" on public.idea_options for select to anon using (true);
-create policy "public idea option write" on public.idea_options for all to anon using (true) with check (true);
-create policy "public library read" on public.libraries for select to anon using (true);
-create policy "public library write" on public.libraries for all to anon using (true) with check (true);
-
-insert into storage.buckets (id, name, public)
-values ('design-vault', 'design-vault', true)
-on conflict (id) do update set public = true;
-
-drop policy if exists "design vault storage read" on storage.objects;
-drop policy if exists "design vault storage insert" on storage.objects;
-drop policy if exists "design vault storage update" on storage.objects;
-drop policy if exists "design vault storage delete" on storage.objects;
-
-create policy "design vault storage read" on storage.objects
-  for select to anon using (bucket_id = 'design-vault');
-create policy "design vault storage insert" on storage.objects
-  for insert to anon with check (bucket_id = 'design-vault');
-create policy "design vault storage update" on storage.objects
-  for update to anon using (bucket_id = 'design-vault') with check (bucket_id = 'design-vault');
-create policy "design vault storage delete" on storage.objects
-  for delete to anon using (bucket_id = 'design-vault');
+-- Next run auth-team-migration.sql with your explicit owner UUID.
+-- This base schema intentionally grants no anonymous access.

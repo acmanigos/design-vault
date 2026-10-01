@@ -51,3 +51,4 @@ export function resolveVideoSource(input?: string): VideoSource {
 
   return { type: 'direct', url: raw };
 }
+

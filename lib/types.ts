@@ -1,12 +1,16 @@
 export type SyncStatus = 'local' | 'pending' | 'syncing' | 'synced' | 'error';
 export type LibraryPreset = 'image-landscape' | 'video-story';
 
-export const DEFAULT_LIBRARY_ID = 'sermon-series';
+export let DEFAULT_LIBRARY_ID = 'sermon-series';
+export function setDefaultLibraryId(id: string) { DEFAULT_LIBRARY_ID = id; }
 export const DEFAULT_LIBRARY_NAME = 'Sermon Series';
 
 export type VaultLibrary = {
   id: string;
   name: string;
+  ownerId?: string;
+  visibility?: 'private' | 'shared';
+  role?: 'owner' | 'editor' | 'viewer';
   preset: LibraryPreset;
   aspectRatio: '16:9' | '9:16';
   width: number;
@@ -56,3 +60,4 @@ export function libraryPresetDefaults(name = ''): Pick<VaultLibrary, 'preset' | 
 export function getThumbnailOption(reference: IdeaBox): IdeaOption | undefined {
   return reference.options.find((option) => option.id === reference.thumbnailOptionId) ?? reference.options[0];
 }
+

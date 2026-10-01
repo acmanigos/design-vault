@@ -59,3 +59,4 @@ export async function extractPalette(imageUrl: string, count = 6): Promise<strin
     image.src = imageUrl;
   });
 }
+

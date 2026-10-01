@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'design-vault-pwa-v1';
+const CACHE_VERSION = 'design-vault-pwa-team-auth-v1';
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 function scopePath() {
@@ -89,3 +89,4 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') void self.skipWaiting();
 });
+
