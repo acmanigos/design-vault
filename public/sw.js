@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'design-vault-pwa-team-auth-v1';
+const CACHE_VERSION = 'design-vault-pwa-drive-video-v2';
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 function scopePath() {

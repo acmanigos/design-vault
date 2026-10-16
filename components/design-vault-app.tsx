@@ -3,6 +3,7 @@
 import { ChangeEvent, DragEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import TeamAccess from '@/components/team-access';
 import { canEdit, canManage } from '@/lib/permissions';
+import { resolveIdeaVideoSource } from '@/lib/video';
 import IdeaBoxDetail from '@/components/idea-box-detail';
 import { Archive, Cloud, Database, Heart, ImagePlus, Layers3, Play, Plus, RefreshCw, Search, Trash2, Upload, Video, WifiOff, X } from 'lucide-react';
 import { extractPalette } from '@/lib/palette';
@@ -74,6 +75,7 @@ async function getDropGroups(dataTransfer: DataTransfer): Promise<DropGroup[]> {
 function IdeaBoxCard({ refItem, library, onFavorite, onOpen }: { refItem: IdeaBox; library: VaultLibrary; onFavorite: () => void; onOpen: () => void }) {
   const thumbnail = getThumbnailOption(refItem);
   if (!thumbnail) return null;
+  const hasVideo = resolveIdeaVideoSource(thumbnail.videoUrl, refItem.videoUrl, refItem.source).type !== 'none';
   return (
     <article className="overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#111] shadow-vault transition hover:border-white/20">
       <div className="group relative overflow-hidden bg-zinc-900">
@@ -81,7 +83,7 @@ function IdeaBoxCard({ refItem, library, onFavorite, onOpen }: { refItem: IdeaBo
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={thumbnail.image} alt={refItem.title} className={`block w-full object-cover transition duration-500 group-hover:scale-[1.02] ${library.aspectRatio === '9:16' ? 'aspect-[9/16]' : 'aspect-[16/10]'}`} />
         </button>
-        {(thumbnail.videoUrl || refItem.videoUrl) && <div className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white"><Play size={11} fill="currentColor" /> Video</div>}
+        {hasVideo && <div className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white"><Play size={11} fill="currentColor" /> Video</div>}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/55 to-transparent" />
         <button disabled={!canEdit(library)} onClick={onFavorite} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur hover:bg-black/60" aria-label="Favorite">
           <Heart size={15} fill={refItem.favorite ? 'currentColor' : 'none'} />
@@ -99,7 +101,7 @@ function IdeaBoxCard({ refItem, library, onFavorite, onOpen }: { refItem: IdeaBo
         </div>
         <div className="flex items-center justify-between text-[11px] text-zinc-500">
           <span>{refItem.options.length} option{refItem.options.length === 1 ? '' : 's'}</span>
-          {(thumbnail.videoUrl || refItem.videoUrl) ? <span className="inline-flex items-center gap-1"><Video size={11} /> video</span> : <span>image only</span>}
+          {hasVideo ? <span className="inline-flex items-center gap-1"><Video size={11} /> video</span> : <span>image only</span>}
         </div>
         <div className="flex items-center gap-1.5 text-[10px]">
           <span className={`h-1.5 w-1.5 rounded-full ${refItem.syncStatus === 'synced' ? 'bg-emerald-400' : refItem.syncStatus === 'error' ? 'bg-red-400' : 'bg-amber-400'}`} />
@@ -179,8 +181,8 @@ function NewIdeaBoxModal({ library, onClose, onSave }: { library: VaultLibrary; 
             <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">First option title</span><input value={optionTitle} onChange={(e) => setOptionTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none" /></label>
             <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Prompt used</span><textarea value={promptUsed} onChange={(e) => setPromptUsed(e.target.value)} rows={7} className="w-full resize-y rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 font-mono text-xs leading-6 outline-none" placeholder="Paste the exact prompt you used for this design…" /></label>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Source</span><input value={source} onChange={(e) => setSource(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none" placeholder="ChatGPT, Pinterest, own concept…" /></label>
-              {library.optionVideoEnabled && <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Option video URL</span><input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none" placeholder="YouTube, Shorts, youtu.be, or direct video URL" /></label>}
+              <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Source</span><input value={source} onChange={(e) => setSource(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none" placeholder="Source name or Google Drive video link" /></label>
+              {library.optionVideoEnabled && <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Option video URL</span><input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none" placeholder="Google Drive, YouTube, Shorts, or direct video URL" /></label>}
             </div>
             <label><span className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-zinc-600">Idea box notes</span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full resize-y rounded-xl border border-white/10 bg-black/25 px-3.5 py-3 text-sm outline-none" placeholder="What is the sermon about? What direction do you want to explore?" /></label>
             <div><p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-zinc-600">Extracted colors</p><div className="flex flex-wrap gap-2">{palette.map((color) => <div key={color} className="flex items-center gap-2 rounded-full border border-white/10 py-1 pl-1 pr-3"><span className="h-7 w-7 rounded-full border border-white/10" style={{backgroundColor: color}}/><span className="font-mono text-[10px] text-zinc-400">{color}</span></div>)}</div></div>
