@@ -8,6 +8,7 @@ import { deleteIdeaBox, loadIdeaBox, loadLibraries, saveIdeaBox, imageFileToStor
 import { extractPalette } from '@/lib/palette';
 import { resolveIdeaVideoSource } from '@/lib/video';
 import DesignPreview from '@/components/design-preview';
+import PreviewReturn from '@/components/preview-return';
 import type { IdeaOption, IdeaBox, VaultLibrary } from '@/lib/types';
 
 function ColorPaletteEditor({ colors, onChange }: { colors: string[]; onChange: (colors: string[]) => void }) {
@@ -341,7 +342,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
           <div className="min-w-0 space-y-5">
-            <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#111]">
+            <PreviewReturn optionTitle={selectedOption?.title || refItem.title}>
               <DesignPreview
                 key={JSON.stringify([refItem.id, selectedOption?.id, videoSource])}
                 source={videoSource}
@@ -350,7 +351,7 @@ export default function IdeaBoxDetail({ id, onClose }: { id: string; onClose?: (
                 alt={selectedOption?.title || refItem.title}
                 story={isStoryLibrary}
               />
-            </div>
+            </PreviewReturn>
             <section onDragEnter={optionDragOver} onDragOver={optionDragOver} onDragLeave={(event) => { if (event.currentTarget === event.target) setDropActive(false); }} onDrop={optionDrop} className={`relative rounded-[26px] border bg-[#111] p-3 transition sm:p-4 ${dropActive ? 'border-orange-400' : 'border-white/10'}`}>
               <div className="mb-3 flex items-center justify-between gap-3 px-1"><div><p className="text-[11px] font-medium uppercase tracking-[0.18em] text-orange-300">Options</p><p className="mt-1 text-xs text-zinc-600">Click an option to view its prompt, notes, and colors. Paste with Ctrl+V, or drag multiple images here to add them in bulk.</p>{pasteStatus && <p className={`mt-2 text-xs ${pasteBusy ? 'text-zinc-400' : 'text-emerald-300'}`}>{pasteStatus}</p>}{dropStatus && <p className={`mt-2 text-xs ${dropBusy ? 'text-zinc-400' : 'text-emerald-300'}`}>{dropStatus}</p>}</div><button disabled={!editable} onClick={() => setAddingOption(true)} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-300"><Plus size={13}/> Add option</button></div>
               <div className={`mb-3 rounded-2xl border border-dashed px-4 py-3 text-center text-xs transition ${dropActive ? 'border-orange-400 bg-orange-500/[0.08] text-orange-200' : 'border-white/10 bg-black/10 text-zinc-600'}`}>{dropBusy ? dropStatus || 'Adding images...' : 'Drop multiple images here to add them as new options'}</div>

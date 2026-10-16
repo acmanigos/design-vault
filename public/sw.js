@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'design-vault-pwa-image-preview-v3';
+const CACHE_VERSION = 'design-vault-pwa-preview-return-v4';
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 function scopePath() {
