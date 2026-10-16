@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
@@ -9,11 +10,15 @@ function load(file) {
   const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }
   }).outputText;
-  new Function('require', 'module', 'exports', compiled)(require, module, module.exports);
+  const localRequire = name => name.startsWith('.')
+    ? load(path.join(path.dirname(file), name + '.tsx'))
+    : require(name);
+  new Function('require', 'module', 'exports', compiled)(localRequire, module, module.exports);
   return module.exports;
 }
 const { resolveVideoSource, resolveIdeaVideoSource, getGoogleDriveVideo } = load('lib/video.ts');
 const Preview = load('components/video-preview.tsx').default;
+const DesignPreview = load('components/design-preview.tsx').default;
 const id = '1Example_Video-File123';
 const driveLink = 'https://drive.google.com/file/d/' + id + '/view?usp=sharing';
 
@@ -74,4 +79,24 @@ test('Drive uses an iframe, supports portrait sizing, and direct files keep nati
   assert.match(html, /aspect-\[9\/16\]/); assert.match(html, /allowFullScreen/);
   const native = renderToStaticMarkup(React.createElement(Preview, { source: resolveVideoSource('https://example.test/v.webm'), title: 'Video', story: false }));
   assert.match(native, /<video/); assert.match(native, /controls/);
+});
+
+test('Design image is shown first without loading an attached video player', () => {
+  for (const link of [driveLink, 'https://youtu.be/abcdef12345', 'https://example.test/v.mp4']) {
+    const html = renderToStaticMarkup(React.createElement(DesignPreview, {
+      source: resolveVideoSource(link), title: 'Thanksgiving', image: '/design.webp', alt: 'Option 1', story: false
+    }));
+    assert.match(html, /<img/);
+    assert.match(html, /src="\/design.webp"/);
+    assert.match(html, /aria-label="Play video"/);
+    assert.doesNotMatch(html, /<iframe|<video/);
+  }
+});
+
+test('Image-only options have no play button and portrait images retain their sizing', () => {
+  const html = renderToStaticMarkup(React.createElement(DesignPreview, {
+    source: { type: 'none' }, title: 'Visit', image: '/poster.webp', alt: 'Portrait option', story: true
+  }));
+  assert.match(html, /<img/); assert.match(html, /max-h-\[760px\]/);
+  assert.doesNotMatch(html, /Play video|<iframe|<video/);
 });
